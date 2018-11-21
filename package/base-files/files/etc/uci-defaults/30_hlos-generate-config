@@ -1,0 +1,48 @@
+#!/bin/sh
+
+. /etc/openwrt_release
+
+[ -s /etc/config/hlos ] && exit 0
+
+touch /etc/config/hlos
+
+# search for api key in uboot environmenet
+HASHLAND_API_KEY=$(fw_printenv hashland_api_key)
+err=$?
+
+if [ $err = 0 ]; then
+	HASHLAND_API_KEY=$(echo $HASHLAND_API_KEY | cut -d"=" -f2)
+else
+	# search for api key in boot args
+	HASHLAND_API_KEY=$(tr ' ' '\n' < /proc/cmdline | grep hashland_api_key=)
+	err=$?
+
+	if [ $err = 0 ]; then
+	        HASHLAND_API_KEY=$(echo $HASHLAND_API_KEY | cut -d"=" -f2)
+	else
+		HASHLAND_API_KEY=""
+	fi
+
+fi
+
+if echo "$DISTRIB_RELEASE"| grep beta>/dev/null; then 
+	VERSION="@beta"
+elif echo "$DISTRIB_RELEASE"| grep dev>/dev/null; then
+	VERSION="@dev"
+else
+	VERSION="@stable"
+fi
+
+uci -q batch <<-EOF
+        delete hlos.@account[0]
+        add hlos account
+        set hlos.@account[0].api_key='$HASHLAND_API_KEY'
+	
+	delete hlos.@updates[0]
+        add hlos update
+        set hlos.@update[0].enable='1'
+        set hlos.@update[0].version='$VERSION'
+EOF
+
+exit 0
+
